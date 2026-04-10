@@ -1,26 +1,22 @@
-import eventlet
-eventlet.monkey_patch()
-
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, join_room, leave_room
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import requests
 import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
-# ملاحظة: sqlite قد لا تحفظ البيانات بشكل دائم على Render في الخطة المجانية بعد إعادة التشغيل
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chat.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# ================= DATABASE MODELS =================
+# ================= DATABASE =================
 
 class Room(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -34,16 +30,9 @@ class Message(db.Model):
     content = db.Column(db.String(500))
     file = db.Column(db.String(200))
 
-class UserStatus(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    room = db.Column(db.String(50))
-    last_seen = db.Column(db.String(50))
-    online = db.Column(db.Boolean, default=False)
+# ================= MEMORY =================
 
-# ================= MEMORY STORAGE =================
-
-online_users = {}  # room -> {sid: username}
+online_users = {}
 
 # ================= ROUTES =================
 
@@ -53,8 +42,6 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    if 'file' not in request.files:
-        return "No file", 400
     file = request.files['file']
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
     file.save(filepath)
@@ -63,8 +50,9 @@ def upload():
 @app.route('/create_room', methods=['POST'])
 def create_room():
     data = request.json
-    name = data.get('name')
-    password = data.get('password')
+
+    name = data['name']
+    password = data['password']
 
     exist = Room.query.filter_by(name=name, password=password).first()
     if exist:
@@ -72,9 +60,10 @@ def create_room():
 
     db.session.add(Room(name=name, password=password))
     db.session.commit()
+
     return {"status": "ok", "msg": "تم إنشاء الغرفة"}
 
-# ================= SOCKET EVENTS =================
+# ================= SOCKET =================
 
 @socketio.on('join')
 def join(data):
@@ -83,28 +72,37 @@ def join(data):
     username = data['username']
     sid = request.sid
 
+    # تحقق من الغرفة
     r = Room.query.filter_by(name=room, password=password).first()
     if not r:
+        print(f"❌ Failed login attempt to room: {room}")
         return
 
     join_room(room)
 
+    # ================= IP DETECTION =================
+    # محاولة أخذ IP الحقيقي
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+    try:
+        geo = requests.get(f"http://ip-api.com/json/{ip}?fields=country,city").json()
+        country = geo.get("country", "Unknown")
+        city = geo.get("city", "Unknown")
+
+        print(f"🌍 {username} joined room [{room}] from {country} - {city}")
+
+    except:
+        print(f"⚠️ {username} joined room [{room}] (IP lookup failed)")
+
+    # ================= USERS =================
     if room not in online_users:
         online_users[room] = {}
 
     online_users[room][sid] = username
 
-    status = UserStatus.query.filter_by(username=username, room=room).first()
-    if not status:
-        status = UserStatus(username=username, room=room)
-
-    status.online = True
-    status.last_seen = "Online"
-    db.session.add(status)
-    db.session.commit()
-
-    # إرسال تاريخ الرسائل للمستخدم الجديد
+    # ================= SEND OLD MESSAGES =================
     messages = Message.query.filter_by(room=room).all()
+
     for msg in messages:
         socketio.emit('message', {
             'username': msg.username,
@@ -116,8 +114,7 @@ def join(data):
 
 @socketio.on('message')
 def handle_message(data):
-    room = data.get('room')
-    if not room: return
+    room = data['room']
 
     msg = Message(
         room=room,
@@ -125,8 +122,10 @@ def handle_message(data):
         content=data.get('msg'),
         file=data.get('file')
     )
+
     db.session.add(msg)
     db.session.commit()
+
     socketio.emit('message', data, to=room)
 
 def emit_users(room):
@@ -136,22 +135,19 @@ def emit_users(room):
 @socketio.on('disconnect')
 def disconnect():
     sid = request.sid
+
     for room in list(online_users.keys()):
         if sid in online_users[room]:
             username = online_users[room].pop(sid)
-            status = UserStatus.query.filter_by(username=username, room=room).first()
-            if status:
-                status.online = False
-                status.last_seen = datetime.now().strftime("%Y-%m-%d %H:%M")
-                db.session.commit()
+
+            print(f"🔴 {username} left room [{room}]")
+
             emit_users(room)
 
-# ================= STARTUP =================
+# ================= RUN =================
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    
-    # الحصول على المنفذ من Render أو استخدام 10000 كافتراضي
-    port = int(os.environ.get("PORT", 10000))
-    socketio.run(app, host='0.0.0.0', port=port)
+
+    socketio.run(app, host='0.0.0.0', port=10000)
