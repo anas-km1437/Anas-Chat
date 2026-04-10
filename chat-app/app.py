@@ -157,9 +157,12 @@ def disconnect():
 
             emit_users(room)
 
+# ================= EXECUTION =================
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-
-    if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=10000)
+    
+    # Render يفضل قراءة البورت من متغيرات البيئة
+    port = int(os.environ.get("PORT", 10000))
+    socketio.run(app, host='0.0.0.0', port=port)
