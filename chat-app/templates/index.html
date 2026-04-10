@@ -1,9 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chat App</title>
+    <title>Anas Chat</title>
 </head>
+
 <body>
+
+<h1>Anas Chat 💬</h1>
+
+<hr>
 
 <h2>Create Room</h2>
 
@@ -26,6 +31,8 @@
 <ul id="users"></ul>
 
 <hr>
+
+<h3>Chat</h3>
 
 <input id="msg" placeholder="اكتب رسالة">
 <button onclick="sendMessage()">إرسال</button>
@@ -84,14 +91,27 @@ function sendMessage() {
 // استقبال الرسائل
 socket.on('message', function(data) {
     let li = document.createElement("li");
-    li.textContent = data.username + ": " + (data.msg || "");
 
     if (data.file) {
-        let img = document.createElement("img");
-        img.src = "/static/uploads/" + data.file;
-        img.width = 150;
+        let media;
+
+        if (data.file.endsWith(".mp4")) {
+            media = document.createElement("video");
+            media.controls = true;
+            media.width = 200;
+        } else {
+            media = document.createElement("img");
+            media.width = 150;
+        }
+
+        media.src = "/static/uploads/" + data.file;
+
+        li.textContent = data.username + ": ";
         li.appendChild(document.createElement("br"));
-        li.appendChild(img);
+        li.appendChild(media);
+
+    } else {
+        li.textContent = data.username + ": " + (data.msg || "");
     }
 
     document.getElementById("messages").appendChild(li);
@@ -104,7 +124,7 @@ socket.on('users', function(users) {
 
     users.forEach(u => {
         let li = document.createElement("li");
-        li.textContent = u;
+        li.textContent = "🟢 " + u;
         list.appendChild(li);
     });
 });
