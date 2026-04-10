@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat App</title>
+</head>
+<body>
+
+<h2>Create Room</h2>
+
+<input id="newRoom" placeholder="Room name">
+<input id="newPass" placeholder="Password">
+<button onclick="createRoom()">إنشاء</button>
+
+<hr>
+
+<h2>Join Room</h2>
+
+<input id="username" placeholder="اسم المستخدم">
+<input id="room" placeholder="Room">
+<input id="password" placeholder="Password">
+<button onclick="joinRoom()">دخول</button>
+
+<hr>
+
+<h3>Online Users</h3>
+<ul id="users"></ul>
+
+<hr>
+
+<input id="msg" placeholder="اكتب رسالة">
+<button onclick="sendMessage()">إرسال</button>
+
+<br><br>
+
+<input type="file" id="file">
+<button onclick="sendFile()">إرسال ملف</button>
+
+<ul id="messages"></ul>
+
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+
+<script>
+var socket = io();
+var currentRoom = "";
+var username = "";
+var password = "";
+
+// إنشاء غرفة
+function createRoom() {
+    fetch("/create_room", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            name: document.getElementById("newRoom").value,
+            password: document.getElementById("newPass").value
+        })
+    })
+    .then(r => r.json())
+    .then(d => alert(d.msg));
+}
+
+// دخول غرفة
+function joinRoom() {
+    username = document.getElementById("username").value;
+    currentRoom = document.getElementById("room").value;
+    password = document.getElementById("password").value;
+
+    socket.emit('join', {
+        username: username,
+        room: currentRoom,
+        password: password
+    });
+}
+
+// إرسال رسالة
+function sendMessage() {
+    socket.emit('message', {
+        username: username,
+        msg: document.getElementById("msg").value,
+        room: currentRoom
+    });
+}
+
+// استقبال الرسائل
+socket.on('message', function(data) {
+    let li = document.createElement("li");
+    li.textContent = data.username + ": " + (data.msg || "");
+
+    if (data.file) {
+        let img = document.createElement("img");
+        img.src = "/static/uploads/" + data.file;
+        img.width = 150;
+        li.appendChild(document.createElement("br"));
+        li.appendChild(img);
+    }
+
+    document.getElementById("messages").appendChild(li);
+});
+
+// المستخدمين
+socket.on('users', function(users) {
+    let list = document.getElementById("users");
+    list.innerHTML = "";
+
+    users.forEach(u => {
+        let li = document.createElement("li");
+        li.textContent = u;
+        list.appendChild(li);
+    });
+});
+
+// إرسال ملفات
+function sendFile() {
+    let file = document.getElementById("file").files[0];
+
+    let formData = new FormData();
+    formData.append("file", file);
+
+    fetch("/upload", {
+        method: "POST",
+        body: formData
+    })
+    .then(r => r.text())
+    .then(filename => {
+        socket.emit('message', {
+            username: username,
+            file: filename,
+            room: currentRoom
+        });
+    });
+}
+</script>
+
+</body>
+</html>
