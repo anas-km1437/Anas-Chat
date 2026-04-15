@@ -5,24 +5,24 @@
 <title>Anas Chat</title>
 
 <style>
-body { margin:0; background:#0f172a; color:white; font-family:Arial; display:flex; }
-.sidebar { width:250px; background:#020617; padding:15px; }
-.chat { flex:1; display:flex; flex-direction:column; }
-#messages { flex:1; overflow:auto; padding:20px; list-style:none; display:flex; flex-direction:column; gap:10px; }
-.message-item { max-width:70%; padding:10px; border-radius:10px; background:#1e293b; }
-.my-message { align-self:flex-end; background:#22c55e; }
-.input-bar { display:flex; gap:10px; padding:10px; background:#1e293b; }
-input,button { padding:10px; border:none; border-radius:10px; }
-button { background:#22c55e; color:white; }
-.progress-bar { height:5px; background:#334155; }
-.progress { height:100%; width:0%; background:#22c55e; }
+body {margin:0;background:#0f172a;color:white;font-family:Arial;display:flex;}
+.sidebar {width:250px;background:#020617;padding:15px;}
+.chat {flex:1;display:flex;flex-direction:column;}
+#messages {flex:1;overflow:auto;padding:20px;list-style:none;display:flex;flex-direction:column;gap:10px;}
+.message-item {max-width:70%;padding:10px;border-radius:10px;background:#1e293b;}
+.my-message {align-self:flex-end;background:#22c55e;}
+.input-bar {display:flex;gap:10px;padding:10px;background:#1e293b;}
+input,button {padding:10px;border:none;border-radius:10px;}
+button {background:#22c55e;color:white;cursor:pointer;}
+#login {position:absolute;inset:0;background:#0f172a;display:flex;gap:20px;justify-content:center;align-items:center;}
+.card {background:#1e293b;padding:20px;border-radius:10px;}
 </style>
 </head>
 
 <body>
 
 <div class="sidebar">
-<h3>المتصلون</h3>
+<h3>👥 المتصلون</h3>
 <ul id="users"></ul>
 </div>
 
@@ -31,16 +31,29 @@ button { background:#22c55e; color:white; }
 
 <div class="input-bar">
 <input type="file" id="file" onchange="sendFile()">
-<input id="msg" placeholder="اكتب رسالة">
+<input id="msg" placeholder="اكتب رسالة..." onkeypress="if(event.key==='Enter')sendMessage()">
 <button onclick="sendMessage()">إرسال</button>
 </div>
 </div>
 
+<!-- 🔥 LOGIN + CREATE -->
 <div id="login">
+
+<div class="card">
+<h3>إنشاء غرفة</h3>
+<input id="newRoom" placeholder="اسم الغرفة">
+<input id="newPass" placeholder="كلمة السر">
+<button onclick="createRoom()">إنشاء</button>
+</div>
+
+<div class="card">
+<h3>دخول</h3>
 <input id="username" placeholder="اسمك">
-<input id="room" placeholder="الغرفة">
+<input id="room" placeholder="اسم الغرفة">
 <input id="password" placeholder="كلمة السر">
 <button onclick="joinRoom()">دخول</button>
+</div>
+
 </div>
 
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
@@ -51,38 +64,69 @@ const socket = io();
 let username = "";
 let currentRoom = "";
 
-/* دخول */
+/* 🔥 إنشاء غرفة */
+function createRoom(){
+    let name = document.getElementById("newRoom").value;
+    let pass = document.getElementById("newPass").value;
+
+    if(!name || !pass) return alert("اكتب البيانات");
+
+    fetch("/create_room",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name:name,password:pass})
+    })
+    .then(r=>r.json())
+    .then(d=>alert(d.msg));
+}
+
+/* 🔥 دخول */
 function joinRoom(){
     username = document.getElementById("username").value;
     currentRoom = document.getElementById("room").value;
     let password = document.getElementById("password").value;
 
-    socket.emit("join",{username, room:currentRoom, password});
+    if(!username || !currentRoom || !password){
+        alert("كمل البيانات");
+        return;
+    }
+
+    socket.emit("join",{username,room:currentRoom,password});
+
+    document.getElementById("login").style.display="none";
 }
 
-/* رسالة */
+/* 🔥 إرسال رسالة */
 function sendMessage(){
     let msgInput = document.getElementById("msg");
+
     if(!msgInput.value.trim()) return;
 
-    socket.emit("message",{username, room:currentRoom, msg:msgInput.value});
+    socket.emit("message",{
+        username:username,
+        room:currentRoom,
+        msg:msgInput.value
+    });
+
     msgInput.value="";
 }
 
-/* استقبال */
+/* 🔥 استقبال */
 socket.on("message",data=>{
     let li=document.createElement("li");
     li.className="message-item"+(data.username===username?" my-message":"");
 
-    li.innerHTML = data.file ?
-    `<b>${data.username}</b><br><img src="/static/uploads/${data.file}">`
-    :
-    `<b>${data.username}</b><br>${data.msg}`;
+    if(data.file){
+        li.innerHTML=`<b>${data.username}</b><br>
+        <img src="/static/uploads/${data.file}">`;
+    }else{
+        li.innerHTML=`<b>${data.username}</b><br>${data.msg}`;
+    }
 
     document.getElementById("messages").appendChild(li);
 });
 
-/* رفع */
+/* 🔥 رفع */
 async function sendFile(){
     let file=document.getElementById("file").files[0];
     if(!file) return;
