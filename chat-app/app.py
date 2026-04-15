@@ -9,12 +9,13 @@ app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chat.db'
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
 
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# ⚡ أسرع إعداد
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-# ===== DATABASE =====
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# ===== DB =====
 
 class Room(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -28,7 +29,7 @@ class Message(db.Model):
     content = db.Column(db.String(500))
     file = db.Column(db.String(200))
 
-# ===== MEMORY =====
+
 online_users = {}
 
 # ===== ROUTES =====
@@ -37,35 +38,29 @@ online_users = {}
 def home():
     return render_template('index.html')
 
+
 @app.route('/create_room', methods=['POST'])
 def create_room():
     data = request.json
-    name = data['name']
-    password = data['password']
 
-    exist = Room.query.filter_by(name=name).first()
-    if exist:
-        return {"msg": "اسم الغرفة مستخدم"}
+    if Room.query.filter_by(name=data['name']).first():
+        return {"msg": "الغرفة موجودة"}
 
-    db.session.add(Room(name=name, password=password))
+    db.session.add(Room(name=data['name'], password=data['password']))
     db.session.commit()
-    return {"msg": "تم إنشاء الغرفة"}
 
-# ===== CHUNK UPLOAD =====
+    return {"msg": "تم إنشاء الغرفة ⚡"}
 
-@app.route('/upload_chunk', methods=['POST'])
-def upload_chunk():
-    chunk = request.files['chunk']
-    filename = request.form['filename']
-    chunk_index = int(request.form['index'])
 
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+# ===== UPLOAD (FAST) =====
 
-    mode = 'ab' if chunk_index > 0 else 'wb'
-    with open(filepath, mode) as f:
-        f.write(chunk.read())
+@app.route('/upload', methods=['POST'])
+def upload():
+    file = request.files['file']
+    path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(path)
+    return file.filename
 
-    return "ok"
 
 # ===== SOCKET =====
 
@@ -81,13 +76,11 @@ def join(data):
 
     join_room(room)
 
-    if room not in online_users:
-        online_users[room] = {}
-
+    online_users.setdefault(room, {})
     online_users[room][request.sid] = username
 
-    msgs = Message.query.filter_by(room=room).all()
-    for m in msgs:
+    # إرسال الرسائل القديمة
+    for m in Message.query.filter_by(room=room).all():
         emit('message', {
             "username": m.username,
             "msg": m.content,
@@ -96,8 +89,10 @@ def join(data):
 
     emit_users(room)
 
+
 @socketio.on('message')
 def message(data):
+
     db.session.add(Message(
         room=data['room'],
         username=data['username'],
@@ -108,21 +103,25 @@ def message(data):
 
     emit('message', data, to=data['room'])
 
-@socketio.on('uploading')
-def uploading(data):
-    emit('uploading', data, to=data['room'])
+
+@socketio.on('typing')
+def typing(data):
+    emit('typing', data, to=data['room'])
+
 
 @socketio.on('disconnect')
 def disconnect():
     sid = request.sid
-    for room in online_users:
+
+    for room in list(online_users.keys()):
         if sid in online_users[room]:
             online_users[room].pop(sid)
             emit_users(room)
 
+
 def emit_users(room):
-    users = list(online_users.get(room, {}).values())
-    emit('users', users, to=room)
+    emit('users', list(online_users.get(room, {}).values()), to=room)
+
 
 # ===== RUN =====
 
