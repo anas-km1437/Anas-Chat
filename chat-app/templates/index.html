@@ -1,135 +1,316 @@
-from flask import Flask, render_template, request
-from flask_socketio import SocketIO, join_room
-from flask_sqlalchemy import SQLAlchemy
-import os
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anas Chat</title>
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chat.db'
+<style>
+:root {
+    --primary:#22c55e;
+    --bg:#0f172a;
+    --card:#1e293b;
+}
 
-db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+body {
+    margin:0;
+    background:var(--bg);
+    color:white;
+    font-family:Arial;
+    display:flex;
+    height:100vh;
+}
 
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+/* SIDEBAR */
+.sidebar {
+    width:250px;
+    background:#020617;
+    padding:15px;
+}
 
-# ===== DATABASE =====
+.user-item {
+    padding:8px;
+    border-bottom:1px solid #1e293b;
+}
 
-class Room(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50))
-    password = db.Column(db.String(50))
+/* CHAT */
+.chat {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+}
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    room = db.Column(db.String(50))
-    username = db.Column(db.String(50))
-    content = db.Column(db.String(500))
-    file = db.Column(db.String(200))
+#messages {
+    flex:1;
+    overflow:auto;
+    padding:20px;
+    list-style:none;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
 
-# ===== MEMORY =====
-online_users = {}
+.message-item {
+    max-width:70%;
+    padding:10px;
+    border-radius:10px;
+    background:var(--card);
+}
 
-# ===== ROUTES =====
+.my-message {
+    align-self:flex-end;
+    background:var(--primary);
+}
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+.username-label {
+    font-size:12px;
+    color:#aaa;
+}
 
-@app.route('/create_room', methods=['POST'])
-def create_room():
-    data = request.json
-    name = data['name']
-    password = data['password']
+/* INPUT */
+.input-bar {
+    display:flex;
+    gap:10px;
+    padding:10px;
+    background:#1e293b;
+}
 
-    exist = Room.query.filter_by(name=name).first()
-    if exist:
-        return {"msg": "اسم الغرفة مستخدم"}
+input {
+    padding:10px;
+    border:none;
+    border-radius:10px;
+}
 
-    db.session.add(Room(name=name, password=password))
-    db.session.commit()
-    return {"msg": "تم إنشاء الغرفة"}
+button {
+    background:var(--primary);
+    border:none;
+    color:white;
+    padding:10px;
+    border-radius:10px;
+    cursor:pointer;
+}
 
-# ===== 🚀 CHUNK UPLOAD =====
+/* UPLOAD */
+.progress-bar {
+    width:100%;
+    height:5px;
+    background:#334155;
+    border-radius:5px;
+    margin-top:5px;
+}
 
-@app.route('/upload_chunk', methods=['POST'])
-def upload_chunk():
-    chunk = request.files['chunk']
-    filename = request.form['filename']
-    chunk_index = int(request.form['index'])
+.progress {
+    height:100%;
+    width:0%;
+    background:#22c55e;
+}
 
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+img, video {
+    max-width:100%;
+    border-radius:10px;
+    margin-top:5px;
+}
 
-    mode = 'ab' if chunk_index > 0 else 'wb'
-    with open(filepath, mode) as f:
-        f.write(chunk.read())
+/* LOGIN */
+#login {
+    position:absolute;
+    inset:0;
+    background:#0f172a;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:20px;
+}
+.card {
+    background:#1e293b;
+    padding:20px;
+    border-radius:10px;
+}
+</style>
+</head>
 
-    return "ok"
+<body>
 
-# ===== SOCKET =====
+<div class="sidebar">
+<h3>👥 المتصلون</h3>
+<ul id="users"></ul>
+</div>
 
-@socketio.on('join')
-def join(data):
-    room = data['room']
-    username = data['username']
-    password = data['password']
+<div class="chat">
 
-    r = Room.query.filter_by(name=room, password=password).first()
-    if not r:
-        return
+<ul id="messages"></ul>
 
-    join_room(room)
+<div class="input-bar">
+<input type="file" id="file" onchange="sendFile()">
+<input id="msg" placeholder="اكتب رسالة..." onkeypress="if(event.key==='Enter')sendMessage()">
+<button onclick="sendMessage()">إرسال</button>
+</div>
 
-    if room not in online_users:
-        online_users[room] = {}
+</div>
 
-    online_users[room][request.sid] = username
+<!-- LOGIN -->
+<div id="login">
+<div class="card">
+<h3>إنشاء غرفة</h3>
+<input id="newRoom" placeholder="اسم الغرفة">
+<input id="newPass" placeholder="كلمة السر">
+<button onclick="createRoom()">إنشاء</button>
+</div>
 
-    # إرسال الرسائل القديمة
-    msgs = Message.query.filter_by(room=room).all()
-    for m in msgs:
-        socketio.emit('message', {
-            "username": m.username,
-            "msg": m.content,
-            "file": m.file
-        }, to=request.sid)
+<div class="card">
+<h3>دخول</h3>
+<input id="username" placeholder="اسمك">
+<input id="room" placeholder="الغرفة">
+<input id="password" placeholder="كلمة السر">
+<button onclick="joinRoom()">دخول</button>
+</div>
+</div>
 
-    emit_users(room)
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
-@socketio.on('message')
-def message(data):
-    db.session.add(Message(
-        room=data['room'],
-        username=data['username'],
-        content=data.get('msg'),
-        file=data.get('file')
-    ))
-    db.session.commit()
+<script>
+var socket = io();
+var username="";
+var currentRoom="";
 
-    socketio.emit('message', data, to=data['room'])
+/* غرف */
+function createRoom(){
+fetch("/create_room",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+name:newRoom.value,
+password:newPass.value
+})
+})
+.then(r=>r.json()).then(d=>alert(d.msg));
+}
 
-# 🔥 إشعار الرفع
-@socketio.on('uploading')
-def uploading(data):
-    socketio.emit('uploading', data, to=data['room'])
+function joinRoom(){
+username=document.getElementById("username").value;
+currentRoom=document.getElementById("room").value;
 
-@socketio.on('disconnect')
-def disconnect():
-    sid = request.sid
-    for room in online_users:
-        if sid in online_users[room]:
-            online_users[room].pop(sid)
-            emit_users(room)
+socket.emit("join",{
+username:username,
+room:currentRoom,
+password:password.value
+});
 
-def emit_users(room):
-    users = list(online_users.get(room, {}).values())
-    socketio.emit('users', users, to=room)
+document.getElementById("login").style.display="none";
+}
 
-# ===== RUN =====
+/* رسالة */
+function sendMessage(){
+if(!msg.value.trim()) return;
 
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+socket.emit("message",{
+username:username,
+room:currentRoom,
+msg:msg.value
+});
 
-    socketio.run(app, host='0.0.0.0', port=10000)
+msg.value="";
+}
+
+/* استقبال */
+socket.on("message",function(data){
+let li=document.createElement("li");
+li.className="message-item"+(data.username==username?" my-message":"");
+
+let name=`<div class="username-label">${data.username}</div>`;
+
+if(data.file){
+let media = data.file.endsWith(".mp4") ?
+`<video controls src="/static/uploads/${data.file}"></video>` :
+`<img src="/static/uploads/${data.file}">`;
+
+li.innerHTML=name+media;
+}else{
+li.innerHTML=name+data.msg;
+}
+
+messages.appendChild(li);
+messages.scrollTop=messages.scrollHeight;
+});
+
+/* مستخدمين */
+socket.on("users",function(users){
+let list=document.getElementById("users");
+list.innerHTML="";
+users.forEach(u=>{
+let li=document.createElement("li");
+li.className="user-item";
+li.innerText=u;
+list.appendChild(li);
+});
+});
+
+/* 🔥 إشعار رفع */
+socket.on("uploading",function(data){
+if(data.username===username) return;
+
+let li=document.createElement("li");
+li.className="message-item";
+
+li.innerHTML=`
+<div class="username-label">${data.username}</div>
+<div>📤 يرفع ملف...</div>
+`;
+
+messages.appendChild(li);
+});
+
+/* 🚀 رفع سريع */
+async function sendFile(){
+let file=document.getElementById("file").files[0];
+if(!file) return;
+
+socket.emit("uploading",{username:username,room:currentRoom});
+
+let li=document.createElement("li");
+li.className="message-item my-message";
+
+li.innerHTML=`
+<div class="username-label">${username}</div>
+<div>📤 جاري الرفع...</div>
+<div class="progress-bar">
+<div class="progress"></div>
+</div>
+`;
+
+messages.appendChild(li);
+
+let progress=li.querySelector(".progress");
+
+const chunkSize=1024*200;
+let offset=0;
+let index=0;
+
+while(offset<file.size){
+
+let chunk=file.slice(offset,offset+chunkSize);
+
+let fd=new FormData();
+fd.append("chunk",chunk);
+fd.append("filename",file.name);
+fd.append("index",index);
+
+await fetch("/upload_chunk",{method:"POST",body:fd});
+
+offset+=chunkSize;
+index++;
+
+progress.style.width=(offset/file.size*100)+"%";
+}
+
+/* بعد الرفع */
+socket.emit("message",{
+username:username,
+room:currentRoom,
+file:file.name
+});
+}
+</script>
+
+</body>
+</html>
