@@ -2,313 +2,111 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Anas Chat</title>
 
 <style>
-:root {
-    --primary:#22c55e;
-    --bg:#0f172a;
-    --card:#1e293b;
-}
-
-body {
-    margin:0;
-    background:var(--bg);
-    color:white;
-    font-family:Arial;
-    display:flex;
-    height:100vh;
-}
-
-/* SIDEBAR */
-.sidebar {
-    width:250px;
-    background:#020617;
-    padding:15px;
-}
-
-.user-item {
-    padding:8px;
-    border-bottom:1px solid #1e293b;
-}
-
-/* CHAT */
-.chat {
-    flex:1;
-    display:flex;
-    flex-direction:column;
-}
-
-#messages {
-    flex:1;
-    overflow:auto;
-    padding:20px;
-    list-style:none;
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-}
-
-.message-item {
-    max-width:70%;
-    padding:10px;
-    border-radius:10px;
-    background:var(--card);
-}
-
-.my-message {
-    align-self:flex-end;
-    background:var(--primary);
-}
-
-.username-label {
-    font-size:12px;
-    color:#aaa;
-}
-
-/* INPUT */
-.input-bar {
-    display:flex;
-    gap:10px;
-    padding:10px;
-    background:#1e293b;
-}
-
-input {
-    padding:10px;
-    border:none;
-    border-radius:10px;
-}
-
-button {
-    background:var(--primary);
-    border:none;
-    color:white;
-    padding:10px;
-    border-radius:10px;
-    cursor:pointer;
-}
-
-/* UPLOAD */
-.progress-bar {
-    width:100%;
-    height:5px;
-    background:#334155;
-    border-radius:5px;
-    margin-top:5px;
-}
-
-.progress {
-    height:100%;
-    width:0%;
-    background:#22c55e;
-}
-
-img, video {
-    max-width:100%;
-    border-radius:10px;
-    margin-top:5px;
-}
-
-/* LOGIN */
-#login {
-    position:absolute;
-    inset:0;
-    background:#0f172a;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:20px;
-}
-.card {
-    background:#1e293b;
-    padding:20px;
-    border-radius:10px;
-}
+body { margin:0; background:#0f172a; color:white; font-family:Arial; display:flex; }
+.sidebar { width:250px; background:#020617; padding:15px; }
+.chat { flex:1; display:flex; flex-direction:column; }
+#messages { flex:1; overflow:auto; padding:20px; list-style:none; display:flex; flex-direction:column; gap:10px; }
+.message-item { max-width:70%; padding:10px; border-radius:10px; background:#1e293b; }
+.my-message { align-self:flex-end; background:#22c55e; }
+.input-bar { display:flex; gap:10px; padding:10px; background:#1e293b; }
+input,button { padding:10px; border:none; border-radius:10px; }
+button { background:#22c55e; color:white; }
+.progress-bar { height:5px; background:#334155; }
+.progress { height:100%; width:0%; background:#22c55e; }
 </style>
 </head>
 
 <body>
 
 <div class="sidebar">
-<h3>👥 المتصلون</h3>
+<h3>المتصلون</h3>
 <ul id="users"></ul>
 </div>
 
 <div class="chat">
-
 <ul id="messages"></ul>
 
 <div class="input-bar">
 <input type="file" id="file" onchange="sendFile()">
-<input id="msg" placeholder="اكتب رسالة..." onkeypress="if(event.key==='Enter')sendMessage()">
+<input id="msg" placeholder="اكتب رسالة">
 <button onclick="sendMessage()">إرسال</button>
 </div>
-
 </div>
 
-<!-- LOGIN -->
 <div id="login">
-<div class="card">
-<h3>إنشاء غرفة</h3>
-<input id="newRoom" placeholder="اسم الغرفة">
-<input id="newPass" placeholder="كلمة السر">
-<button onclick="createRoom()">إنشاء</button>
-</div>
-
-<div class="card">
-<h3>دخول</h3>
 <input id="username" placeholder="اسمك">
 <input id="room" placeholder="الغرفة">
 <input id="password" placeholder="كلمة السر">
 <button onclick="joinRoom()">دخول</button>
 </div>
-</div>
 
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
 <script>
-var socket = io();
-var username="";
-var currentRoom="";
+const socket = io();
 
-/* غرف */
-function createRoom(){
-fetch("/create_room",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({
-name:newRoom.value,
-password:newPass.value
-})
-})
-.then(r=>r.json()).then(d=>alert(d.msg));
-}
+let username = "";
+let currentRoom = "";
 
+/* دخول */
 function joinRoom(){
-username=document.getElementById("username").value;
-currentRoom=document.getElementById("room").value;
+    username = document.getElementById("username").value;
+    currentRoom = document.getElementById("room").value;
+    let password = document.getElementById("password").value;
 
-socket.emit("join",{
-username:username,
-room:currentRoom,
-password:password.value
-});
-
-document.getElementById("login").style.display="none";
+    socket.emit("join",{username, room:currentRoom, password});
 }
 
 /* رسالة */
 function sendMessage(){
-if(!msg.value.trim()) return;
+    let msgInput = document.getElementById("msg");
+    if(!msgInput.value.trim()) return;
 
-socket.emit("message",{
-username:username,
-room:currentRoom,
-msg:msg.value
-});
-
-msg.value="";
+    socket.emit("message",{username, room:currentRoom, msg:msgInput.value});
+    msgInput.value="";
 }
 
 /* استقبال */
-socket.on("message",function(data){
-let li=document.createElement("li");
-li.className="message-item"+(data.username==username?" my-message":"");
+socket.on("message",data=>{
+    let li=document.createElement("li");
+    li.className="message-item"+(data.username===username?" my-message":"");
 
-let name=`<div class="username-label">${data.username}</div>`;
+    li.innerHTML = data.file ?
+    `<b>${data.username}</b><br><img src="/static/uploads/${data.file}">`
+    :
+    `<b>${data.username}</b><br>${data.msg}`;
 
-if(data.file){
-let media = data.file.endsWith(".mp4") ?
-`<video controls src="/static/uploads/${data.file}"></video>` :
-`<img src="/static/uploads/${data.file}">`;
-
-li.innerHTML=name+media;
-}else{
-li.innerHTML=name+data.msg;
-}
-
-messages.appendChild(li);
-messages.scrollTop=messages.scrollHeight;
+    document.getElementById("messages").appendChild(li);
 });
 
-/* مستخدمين */
-socket.on("users",function(users){
-let list=document.getElementById("users");
-list.innerHTML="";
-users.forEach(u=>{
-let li=document.createElement("li");
-li.className="user-item";
-li.innerText=u;
-list.appendChild(li);
-});
-});
-
-/* 🔥 إشعار رفع */
-socket.on("uploading",function(data){
-if(data.username===username) return;
-
-let li=document.createElement("li");
-li.className="message-item";
-
-li.innerHTML=`
-<div class="username-label">${data.username}</div>
-<div>📤 يرفع ملف...</div>
-`;
-
-messages.appendChild(li);
-});
-
-/* 🚀 رفع سريع */
+/* رفع */
 async function sendFile(){
-let file=document.getElementById("file").files[0];
-if(!file) return;
+    let file=document.getElementById("file").files[0];
+    if(!file) return;
 
-socket.emit("uploading",{username:username,room:currentRoom});
+    socket.emit("uploading",{username,room:currentRoom});
 
-let li=document.createElement("li");
-li.className="message-item my-message";
+    const chunkSize=1024*200;
+    let offset=0,index=0;
 
-li.innerHTML=`
-<div class="username-label">${username}</div>
-<div>📤 جاري الرفع...</div>
-<div class="progress-bar">
-<div class="progress"></div>
-</div>
-`;
+    while(offset<file.size){
+        let chunk=file.slice(offset,offset+chunkSize);
 
-messages.appendChild(li);
+        let fd=new FormData();
+        fd.append("chunk",chunk);
+        fd.append("filename",file.name);
+        fd.append("index",index);
 
-let progress=li.querySelector(".progress");
+        await fetch("/upload_chunk",{method:"POST",body:fd});
 
-const chunkSize=1024*200;
-let offset=0;
-let index=0;
+        offset+=chunkSize;
+        index++;
+    }
 
-while(offset<file.size){
-
-let chunk=file.slice(offset,offset+chunkSize);
-
-let fd=new FormData();
-fd.append("chunk",chunk);
-fd.append("filename",file.name);
-fd.append("index",index);
-
-await fetch("/upload_chunk",{method:"POST",body:fd});
-
-offset+=chunkSize;
-index++;
-
-progress.style.width=(offset/file.size*100)+"%";
-}
-
-/* بعد الرفع */
-socket.emit("message",{
-username:username,
-room:currentRoom,
-file:file.name
-});
+    socket.emit("message",{username,room:currentRoom,file:file.name});
 }
 </script>
 
