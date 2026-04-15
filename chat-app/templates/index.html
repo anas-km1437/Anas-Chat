@@ -2,99 +2,20 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>Anas Chat</title>
+<title>Fast Chat</title>
 
 <style>
-body {
-    margin:0;
-    background:#0f172a;
-    color:white;
-    font-family:Arial;
-    display:flex;
-}
-
-/* ❌ حذف sidebar بالكامل */
-
-/* CHAT */
-.chat {
-    flex:1;
-    display:flex;
-    flex-direction:column;
-}
-
-#messages {
-    flex:1;
-    overflow:auto;
-    padding:20px;
-    list-style:none;
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-}
-
-/* الرسالة */
-.message-item {
-    max-width:60%;
-    padding:10px;
-    border-radius:10px;
-    background:#1e293b;
-}
-
-.my-message {
-    align-self:flex-end;
-    background:#22c55e;
-}
-
-/* اسم + وقت */
-.meta {
-    font-size:12px;
-    color:#94a3b8;
-    margin-bottom:5px;
-}
-
-/* الصور والفيديو */
-img, video {
-    max-width:200px; /* 🔥 صغرنا الصورة */
-    border-radius:10px;
-    margin-top:5px;
-}
-
-/* INPUT */
-.input-bar {
-    display:flex;
-    gap:10px;
-    padding:10px;
-    background:#1e293b;
-}
-
-input,button {
-    padding:10px;
-    border:none;
-    border-radius:10px;
-}
-
-button {
-    background:#22c55e;
-    color:white;
-    cursor:pointer;
-}
-
-/* LOGIN */
-#login {
-    position:absolute;
-    inset:0;
-    background:#0f172a;
-    display:flex;
-    gap:20px;
-    justify-content:center;
-    align-items:center;
-}
-
-.card {
-    background:#1e293b;
-    padding:20px;
-    border-radius:10px;
-}
+body{margin:0;background:#0f172a;color:white;font-family:Arial;display:flex}
+.chat{flex:1;display:flex;flex-direction:column}
+#messages{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:10px;list-style:none}
+.msg{background:#1e293b;padding:10px;border-radius:10px;max-width:60%}
+.me{align-self:flex-end;background:#22c55e}
+.meta{font-size:12px;color:#94a3b8}
+img{max-width:180px;border-radius:10px}
+.input{display:flex;gap:10px;padding:10px;background:#1e293b}
+input,button{padding:10px;border:none;border-radius:8px}
+button{background:#22c55e;color:white}
+#typing{padding:5px 10px;color:#94a3b8;font-size:13px}
 </style>
 </head>
 
@@ -102,145 +23,109 @@ button {
 
 <div class="chat">
 
+<div id="typing"></div>
+
 <ul id="messages"></ul>
 
-<div class="input-bar">
-<input type="file" id="file" onchange="sendFile()">
-<input id="msg" placeholder="اكتب رسالة..." onkeypress="if(event.key==='Enter')sendMessage()">
-<button onclick="sendMessage()">إرسال</button>
+<div class="input">
+<input type="file" id="file">
+<input id="msg" placeholder="اكتب..." oninput="typing()" onkeypress="if(event.key==='Enter')send()">
+<button onclick="send()">إرسال</button>
 </div>
 
 </div>
 
 <!-- LOGIN -->
-<div id="login">
+<div id="login" style="position:absolute;inset:0;background:#0f172a;display:flex;gap:20px;justify-content:center;align-items:center">
 
-<div class="card">
-<h3>إنشاء غرفة</h3>
-<input id="newRoom" placeholder="اسم الغرفة">
-<input id="newPass" placeholder="كلمة السر">
-<button onclick="createRoom()">إنشاء</button>
+<div>
+<input id="user" placeholder="اسمك"><br><br>
+<input id="room" placeholder="غرفة"><br><br>
+<input id="pass" placeholder="كلمة السر"><br><br>
+<button onclick="join()">دخول</button>
 </div>
 
-<div class="card">
-<h3>دخول</h3>
-<input id="username" placeholder="اسمك">
-<input id="room" placeholder="اسم الغرفة">
-<input id="password" placeholder="كلمة السر">
-<button onclick="joinRoom()">دخول</button>
+<div>
+<input id="rname" placeholder="اسم غرفة"><br><br>
+<input id="rpass" placeholder="كلمة السر"><br><br>
+<button onclick="create()">إنشاء</button>
 </div>
 
 </div>
 
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-
 <script>
 const socket = io();
 
-let username = "";
-let currentRoom = "";
+let user="",room="";
 
-/* إنشاء غرفة */
-function createRoom(){
-    let name = document.getElementById("newRoom").value;
-    let pass = document.getElementById("newPass").value;
+/* join */
+function join(){
+user=user||document.getElementById("user").value;
+room=document.getElementById("room").value;
 
-    if(!name || !pass) return alert("اكتب البيانات");
-
-    fetch("/create_room",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:name,password:pass})
-    })
-    .then(r=>r.json())
-    .then(d=>alert(d.msg));
+socket.emit("join",{username:user,room:room,password:document.getElementById("pass").value});
+document.getElementById("login").style.display="none";
 }
 
-/* دخول */
-function joinRoom(){
-    username = document.getElementById("username").value;
-    currentRoom = document.getElementById("room").value;
-    let password = document.getElementById("password").value;
-
-    if(!username || !currentRoom || !password){
-        alert("كمل البيانات");
-        return;
-    }
-
-    socket.emit("join",{username,room:currentRoom,password});
-
-    document.getElementById("login").style.display="none";
+/* create */
+function create(){
+fetch("/create_room",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+name:rname.value,
+password:rpass.value
+})
+}).then(r=>r.json()).then(d=>alert(d.msg));
 }
 
-/* إرسال رسالة */
-function sendMessage(){
-    let msgInput = document.getElementById("msg");
+/* send */
+function send(){
+let m=msg.value;
+if(!m) return;
 
-    if(!msgInput.value.trim()) return;
-
-    socket.emit("message",{
-        username:username,
-        room:currentRoom,
-        msg:msgInput.value,
-        time:new Date().toLocaleTimeString()
-    });
-
-    msgInput.value="";
+socket.emit("message",{username:user,room,msg:m});
+msg.value="";
 }
 
-/* استقبال */
-socket.on("message",data=>{
-    let li=document.createElement("li");
-    li.className="message-item"+(data.username===username?" my-message":"");
+/* typing */
+function typing(){
+socket.emit("typing",{username:user,room});
+}
 
-    let time = data.time || new Date().toLocaleTimeString();
+/* receive */
+socket.on("message",d=>{
+let li=document.createElement("li");
+li.className="msg"+(d.username===user?" me":"");
 
-    if(data.file){
-        li.innerHTML=`
-        <div class="meta">${data.username} • ${time}</div>
-        <img src="/static/uploads/${data.file}">
-        `;
-    }else{
-        li.innerHTML=`
-        <div class="meta">${data.username} • ${time}</div>
-        ${data.msg}
-        `;
-    }
+li.innerHTML=`<div class="meta">${d.username}</div>`+
+(d.file?`<img src="/static/uploads/${d.file}">`:d.msg);
 
-    document.getElementById("messages").appendChild(li);
+messages.appendChild(li);
+messages.scrollTop=messages.scrollHeight;
 });
 
-/* رفع */
-async function sendFile(){
-    let file=document.getElementById("file").files[0];
-    if(!file) return;
+/* upload fast */
+file.onchange=async ()=>{
+let f=file.files[0];
+if(!f) return;
 
-    socket.emit("uploading",{username,room:currentRoom});
+let fd=new FormData();
+fd.append("file",f);
 
-    const chunkSize=1024*200;
-    let offset=0,index=0;
+let r=await fetch("/upload",{method:"POST",body:fd});
+let name=await r.text();
 
-    while(offset<file.size){
-        let chunk=file.slice(offset,offset+chunkSize);
+socket.emit("message",{username:user,room,file:name});
+};
 
-        let fd=new FormData();
-        fd.append("chunk",chunk);
-        fd.append("filename",file.name);
-        fd.append("index",index);
-
-        await fetch("/upload_chunk",{method:"POST",body:fd});
-
-        offset+=chunkSize;
-        index++;
-    }
-
-    socket.emit("message",{
-        username:username,
-        room:currentRoom,
-        file:file.name,
-        time:new Date().toLocaleTimeString()
-    });
-}
+/* typing show */
+socket.on("typing",d=>{
+if(d.username===user) return;
+typing.innerText = d.username + " يكتب...";
+setTimeout(()=>typing.innerText="",1000);
+});
 </script>
 
 </body>
