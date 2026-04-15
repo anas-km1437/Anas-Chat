@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, join_room
+from flask_socketio import SocketIO, join_room, emit
 from flask_sqlalchemy import SQLAlchemy
 import os
 
@@ -51,7 +51,7 @@ def create_room():
     db.session.commit()
     return {"msg": "تم إنشاء الغرفة"}
 
-# ===== 🚀 CHUNK UPLOAD =====
+# ===== CHUNK UPLOAD =====
 
 @app.route('/upload_chunk', methods=['POST'])
 def upload_chunk():
@@ -86,14 +86,13 @@ def join(data):
 
     online_users[room][request.sid] = username
 
-    # إرسال الرسائل القديمة
     msgs = Message.query.filter_by(room=room).all()
     for m in msgs:
-        socketio.emit('message', {
+        emit('message', {
             "username": m.username,
             "msg": m.content,
             "file": m.file
-        }, to=request.sid)
+        })
 
     emit_users(room)
 
@@ -107,12 +106,11 @@ def message(data):
     ))
     db.session.commit()
 
-    socketio.emit('message', data, to=data['room'])
+    emit('message', data, to=data['room'])
 
-# 🔥 إشعار الرفع
 @socketio.on('uploading')
 def uploading(data):
-    socketio.emit('uploading', data, to=data['room'])
+    emit('uploading', data, to=data['room'])
 
 @socketio.on('disconnect')
 def disconnect():
@@ -124,7 +122,7 @@ def disconnect():
 
 def emit_users(room):
     users = list(online_users.get(room, {}).values())
-    socketio.emit('users', users, to=room)
+    emit('users', users, to=room)
 
 # ===== RUN =====
 
