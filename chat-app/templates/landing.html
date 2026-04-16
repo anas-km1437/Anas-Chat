@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Anas Chat - دردشة مجانية</title>
+    <meta name="description" content="Anas Chat دردشة مجانية مع غرف خاصة، إرسال صور وفيديو بسهولة">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #22c55e;
+            --dark-bg: #0f172a;
+            --accent: #38bdf8;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: var(--dark-bg);
+            color: white;
+            text-align: center;
+            overflow-x: hidden;
+        }
+
+        .hero {
+            padding: 100px 20px;
+            background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #22c55e, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tagline {
+            font-size: 1.2rem;
+            color: #cbd5e1;
+            max-width: 600px;
+            margin: 0 auto 30px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 18px 45px;
+            background: var(--primary);
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 50px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(34, 197, 94, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .video-container {
+            margin-top: 50px;
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            max-width: 800px;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 20px;
+            border: 4px solid #334155;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 80px;
+            padding: 0 20px;
+        }
+
+        .feature-card {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 20px;
+            width: 250px;
+            transition: 0.3s;
+            border: 1px solid #334155;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary);
+            background: #232f42;
+        }
+
+        .feature-card i {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .feature-card h3 {
+            margin: 10px 0;
+            font-size: 1.2rem;
+        }
+
+        .feature-card p {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        footer {
+            margin-top: 100px;
+            padding: 40px;
+            background: #020617;
+            color: #64748b;
+            border-top: 1px solid #1e293b;
+        }
+
+        /* أنيميشن الدخول */
+        .fade-in {
+            animation: fadeIn 1.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="hero fade-in">
+    <h1>💬 Anas Chat</h1>
+    <p class="tagline">
+        أسرع منصة دردشة عربية لإنشاء غرف خاصة مشفرة والتواصل مع أصدقائك ومشاركة اللحظات بالصور والفيديو.
+    </p>
+
+    <a href="/chat" class="btn">
+        <i class="fas fa-rocket"></i> ابدأ الدردشة الآن
+    </a>
+
+    <div class="video-container">
+        <video controls poster="https://via.placeholder.com/800x450/1e293b/ffffff?text=Anas+Chat+Preview">
+            <source src="{{ url_for('static', filename='your-video.mp4') }}" type="video/mp4">
+            متصفحك لا يدعم تشغيل الفيديو.
+        </video>
+    </div>
+</div>
+
+<div class="features fade-in">
+    <div class="feature-card">
+        <i class="fas fa-lock"></i>
+        <h3>غرف محمية</h3>
+        <p>أنشئ غرفتك الخاصة بكلمة سر وتحكم فيمن ينضم إليك.</p>
+    </div>
+
+    <div class="feature-card">
+        <i class="fas fa-photo-video"></i>
+        <h3>مشاركة الوسائط</h3>
+        <p>أرسل الصور ومقاطع الفيديو بجودة عالية وبسرعة فائقة.</p>
+    </div>
+
+    <div class="feature-card">
+        <i class="fas fa-bolt"></i>
+        <h3>تزامن فوري</h3>
+        <p>دردشة حية مدعومة بتقنية WebSockets لتجربة بدون تأخير.</p>
+    </div>
+
+    <div class="feature-card">
+        <i class="fas fa-mobile-alt"></i>
+        <h3>متعدد الأجهزة</h3>
+        <p>يعمل بسلاسة على المتصفح سواء كنت تستخدم الموبايل أو الكمبيوتر.</p>
+    </div>
+</div>
+
+<footer>
+    <p>© 2026 Anas Chat | صُنع بشغف</p>
+</footer>
+
+</body>
+</html>
