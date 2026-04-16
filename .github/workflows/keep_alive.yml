@@ -1,0 +1,13 @@
+name: Wake Up Render Server
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Request to Render
+        run: curl -I https://anas-chat.onrender.com
